@@ -1,0 +1,23 @@
+name = "AuditPay"
+version = "0.1.0"
+license = "Apache-2.0"
+licenseFiles = ["LICENSE"]
+defaultTargets = ["AuditPay"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+# Files carry a copyright header; the Mathlib header linter also wants an Authors line and
+# module docstring placement, so it stays off.
+weak.linter.style.header = false
+
+# VCV-io: oracle computations, ROM, DDH/CDH/DLog, program logic. Brings Mathlib v4.35.0.
+# Pinned to a specific commit because VCV-io's API changes quickly.
+[[require]]
+name = "VCVio"
+git = "https://github.com/Verified-zkEVM/VCV-io"
+rev = "cc6ae6cc39c1cca024d292262f90880b551fb2b3"
+
+[[lean_lib]]
+name = "AuditPay"

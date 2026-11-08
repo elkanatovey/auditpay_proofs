@@ -1,0 +1,67 @@
+/-
+Copyright (c) 2026 Elkana Tovey, Yossi Gilad, Aviv Zohar. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
+import AuditPay.SLINDDrop.Reductions
+import VCVio.EvalDist.Monad.Disagreement.Measure
+
+/-!
+# Theorem 2 for the never-failing generation, last hop: base-mixer unlinkability
+
+Once both ciphertexts encrypt the dummy note under uniform keys and the proof is simulated,
+the two worlds differ only in the base mixer. The reduction generates `V` itself.
+-/
+
+open OracleComp DiffieHellman ENNReal
+
+namespace AuditPay.SLINDDrop
+
+open AuditPay.SLIND (Params Mode slot distinct mixerExperiment mixerAdvantage)
+
+variable {F G Addr HK Key Note DTx WCore C Proof σ : Type} {k n : ℕ}
+  [Field F] [Fintype F] [SampleableType F]
+  [AddCommGroup G] [Module F G] [SampleableType G]
+  [Fintype Addr] [DecidableEq Addr] [SampleableType HK] [SampleableType Key]
+  [Inhabited Addr] [Inhabited WCore] [Inhabited C]
+
+/-- A sample followed by a continuation that is, for every value, distributed as `my` is
+distributed as `my`. -/
+private theorem bind_eqd_of_forall {α β : Type} (mx : ProbComp α) (f : α → ProbComp β)
+    (my : ProbComp β) (h : ∀ a, f a =ᵈ my) : (mx >>= f) =ᵈ my :=
+  (EvalDistEq.bind_right mx h).trans (bind_const_eqd mx my)
+
+omit [Fintype F] [Inhabited Addr] [Inhabited WCore] [Inhabited C] in
+/-- The base-mixer experiment run by `mixerReduction` for bit `b` is the all-dummy hybrid with
+a simulated proof for bit `b`. -/
+theorem mixerExperiment_eqd (sel : Selection F Addr k n)
+    (P : Params F G Addr HK Key Note DTx WCore C Proof k n)
+    (A : Adversary F G Addr HK DTx WCore C Proof σ n) (b : Bool) :
+    mixerExperiment P.mixer (mixerReduction sel P A) b =ᵈ
+      hybrid sel P A b true .dummy .dummy := by
+  simp only [mixerExperiment, mixerReduction, hybrid, setup, bind_assoc, pure_bind]
+  refine EvalDistEq.bind_right _ fun hk => ?_
+  refine EvalDistEq.bind_right _ fun H => ?_
+  refine EvalDistEq.bind_right _ fun c => ?_
+  by_cases hv : valid sel P.pos P.coef c = true
+  · simp only [hv, valid_distinct hv, ↓reduceIte, bind_assoc, pure_bind, slot, stmt, finish]
+    exact EvalDistEq.rfl
+  · by_cases hd : distinct c.d₀ c.d₁ c.wAddr = true
+    · simp only [hv, hd, ↓reduceIte]
+      exact bind_eqd_of_forall _ _ _ fun _ => bind_eqd_of_forall _ _ _ fun _ =>
+        bind_const_eqd _ _
+    · simp only [hv, hd, ↓reduceIte, Bool.false_eq_true]
+      exact EvalDistEq.rfl
+
+omit [Fintype F] [Inhabited Addr] [Inhabited WCore] [Inhabited C] in
+/-- With dummy ciphertexts and a simulated proof, distinguishing `b = 0` from `b = 1` costs
+the base-mixer unlinkability advantage of `mixerReduction`. -/
+theorem hop_mixer (sel : Selection F Addr k n)
+    (P : Params F G Addr HK Key Note DTx WCore C Proof k n)
+    (A : Adversary F G Addr HK DTx WCore C Proof σ n) :
+    𝒟[hybrid sel P A false true .dummy .dummy].boolDist
+        𝒟[hybrid sel P A true true .dummy .dummy] ≤
+      mixerAdvantage P.mixer (mixerReduction sel P A) := by
+  rw [mixerAdvantage, (mixerExperiment_eqd sel P A false).evalDist_eq,
+    (mixerExperiment_eqd sel P A true).evalDist_eq]
+
+end AuditPay.SLINDDrop
